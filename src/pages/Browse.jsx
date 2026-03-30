@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Logo from '../assets/Logo'
 
+const cities = [
+  "All Cities", "Ondo", "Akure", "Lagos", "Abuja", "Ibadan", "Benin City", "Port Harcourt", "Kano", "Enugu"
+]
+
 const categories = [
   "All", "Accountant", "Lawyer", "Doctor/Nurse", "Event Planner", "Photographer",
   "Makeup Artist", "Tailor", "Plumber", "Electrician", "Carpenter", "Welder",
@@ -19,6 +23,7 @@ export default function Browse() {
   const [providers, setProviders] = useState([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
+  const [city, setCity] = useState('All Cities')
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
@@ -37,7 +42,8 @@ export default function Browse() {
 
   const filtered = providers.filter(p =>
     (p.full_name || '').toLowerCase().includes(search.toLowerCase()) &&
-    (category === 'All' || p.category === category)
+    (category === 'All' || p.category === category) &&
+    (city === 'All Cities' || (p.city || '').toLowerCase() === city.toLowerCase())
   )
 
   return (
@@ -103,6 +109,47 @@ export default function Browse() {
         .cat-pill.active {
           background: #0A2540;
           border-color: #00BFA5;
+          color: #00BFA5;
+        }
+
+        .city-pill {
+          padding: 7px 16px;
+          border-radius: 100px;
+          border: 1.5px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: rgba(255,255,255,0.5);
+          font-family: 'DM Sans', sans-serif;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.25s ease;
+        }
+        .city-pill:hover { background: rgba(255,255,255,0.08); color: white; }
+        .city-pill.active {
+          background: rgba(255,107,74,0.12);
+          border-color: #FF6B4A;
+          color: #FF6B4A;
+        }
+
+        .filter-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          border-radius: 100px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .filter-tag-city {
+          background: rgba(255,107,74,0.1);
+          border: 1px solid rgba(255,107,74,0.3);
+          color: #FF6B4A;
+        }
+        .filter-tag-cat {
+          background: rgba(0,191,165,0.08);
+          border: 1px solid rgba(0,191,165,0.25);
           color: #00BFA5;
         }
 
@@ -230,9 +277,22 @@ export default function Browse() {
         </div>
       </div>
 
+      {/* City pills */}
+      <div style={{ background: 'rgba(6,13,26,0.98)', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '10px 24px', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8, minWidth: 'max-content', alignItems: 'center' }}>
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', marginRight: 4, flexShrink: 0 }}>City</span>
+          {cities.map(c => (
+            <button key={c} className={`city-pill ${city === c ? 'active' : ''}`} onClick={() => setCity(c)}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Category pills */}
-      <div style={{ background: 'rgba(6,13,26,0.95)', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '12px 24px', overflowX: 'auto' }}>
-        <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
+      <div style={{ background: 'rgba(6,13,26,0.95)', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '10px 24px', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8, minWidth: 'max-content', alignItems: 'center' }}>
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', marginRight: 4, flexShrink: 0 }}>Category</span>
           {categories.slice(0, 20).map(cat => (
             <button key={cat} className={`cat-pill ${category === cat ? 'active' : ''}`} onClick={() => setCategory(cat)}>
               {cat}
@@ -243,6 +303,27 @@ export default function Browse() {
 
       {/* Results */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 24px' }}>
+
+        {/* Active filter tags */}
+        {(city !== 'All Cities' || category !== 'All') && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Filters:</span>
+            {city !== 'All Cities' && (
+              <button className="filter-tag filter-tag-city" onClick={() => setCity('All Cities')}>
+                📍 {city} <span style={{ opacity: 0.7 }}>✕</span>
+              </button>
+            )}
+            {category !== 'All' && (
+              <button className="filter-tag filter-tag-cat" onClick={() => setCategory('All')}>
+                {category} <span style={{ opacity: 0.7 }}>✕</span>
+              </button>
+            )}
+            <button onClick={() => { setCity('All Cities'); setCategory('All') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', padding: '4px 8px' }}>
+              Clear all
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
             <div className="spin"></div>
@@ -251,8 +332,16 @@ export default function Browse() {
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>🔍</div>
-            <p className="syne" style={{ fontSize: 24, fontWeight: 800, color: 'white', marginBottom: 8 }}>No providers found yet</p>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, marginBottom: 24 }}>Be the first to list your service on Ugele Online!</p>
+            <p className="syne" style={{ fontSize: 24, fontWeight: 800, color: 'white', marginBottom: 8 }}>No providers found</p>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, marginBottom: 24 }}>
+              {city !== 'All Cities' && category !== 'All'
+                ? `No ${category} providers in ${city} yet.`
+                : city !== 'All Cities'
+                ? `No providers in ${city} yet. Be the first to list your service there!`
+                : category !== 'All'
+                ? `No ${category} providers listed yet. Be the first!`
+                : 'Be the first to list your service on Ugele Online!'}
+            </p>
             <button className="register-btn" onClick={() => navigate('/register')}>Register as a Provider 🚀</button>
           </div>
         ) : (

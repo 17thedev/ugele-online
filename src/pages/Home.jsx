@@ -12,10 +12,10 @@ const orbitItems = [
 ]
 
 const hotServices = [
-  { icon: "🧵", label: "Tailor", tag: "Hot in Ibadan", rating: 4 },
-  { icon: "🔧", label: "Plumber", tag: "Hot in Ibadan", rating: 4 },
+  { icon: "🧵", label: "Tailor", tag: "Hot in Ondo", rating: 4 },
+  { icon: "🔧", label: "Plumber", tag: "Hot in Akure", rating: 4 },
   { icon: "💄", label: "Makeup Artist", tag: "Hot in Lagos", rating: 5 },
-  { icon: "⚖️", label: "Lawyer", tag: "Hot in Abuja", rating: 4 },
+  { icon: "🍛", label: "Food Seller", tag: "Hot in Benin City", rating: 4 },
 ]
 
 const words = ["Plumber", "Caterer", "Tailor", "Designer", "Lawyer", "Electrician"]
@@ -308,7 +308,8 @@ export default function Home() {
         @media (max-width: 960px) {
           .side-nav { display: none !important; }
           .main-grid { grid-template-columns: 1fr !important; padding-left: 20px !important; }
-          .orb-col { display: none !important; }
+          .orb-col { justify-content: center; }
+          .orb-wrap { width: 250px !important; height: 250px !important; }
           .mobile-toggle { display: flex !important; }
         }
         @media (max-width: 600px) {
@@ -428,7 +429,7 @@ export default function Home() {
 
         {/* RIGHT — ORB */}
         <div className="orb-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'relative', width: 340, height: 340 }}>
+          <div className="orb-wrap" style={{ position: 'relative', width: 340, height: 340 }}>
 
             {/* Glow */}
             <div className="orb-glow"></div>
