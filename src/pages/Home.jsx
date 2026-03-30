@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Logo from '../assets/Logo'
 
 const orbitItems = [
@@ -27,8 +27,13 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [orbitAngle, setOrbitAngle] = useState(0)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const rafRef = useRef(null)
 
   useEffect(() => {
+    const checkDesktop = () => setIsDesktop(window.innerWidth > 900)
+    checkDesktop()
+    window.addEventListener('resize', checkDesktop)
     setTimeout(() => setLoaded(true), 100)
     const wordInterval = setInterval(() => {
       setWordVisible(false)
@@ -37,11 +42,30 @@ export default function Home() {
         setWordVisible(true)
       }, 300)
     }, 2200)
-    const orbitInterval = setInterval(() => {
-      setOrbitAngle(a => (a + 0.4) % 360)
-    }, 16)
-    return () => { clearInterval(wordInterval); clearInterval(orbitInterval) }
+    return () => {
+      clearInterval(wordInterval)
+      window.removeEventListener('resize', checkDesktop)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!isDesktop) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      return
+    }
+    let lastTime = 0
+    const animate = (time) => {
+      if (time - lastTime >= 16) {
+        setOrbitAngle(a => (a + 0.4) % 360)
+        lastTime = time
+      }
+      rafRef.current = requestAnimationFrame(animate)
+    }
+    rafRef.current = requestAnimationFrame(animate)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [isDesktop])
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#060d1a', color: 'white', overflowX: 'hidden', position: 'relative' }}>
@@ -427,51 +451,63 @@ export default function Home() {
           </div>
         </div>
 
-        {/* RIGHT — ORB */}
+        {/* RIGHT — ORB (desktop) / Static grid (mobile) */}
         <div className="orb-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="orb-wrap" style={{ position: 'relative', width: 340, height: 340 }}>
+          {isDesktop ? (
+            <div className="orb-wrap" style={{ position: 'relative', width: 340, height: 340 }}>
 
-            {/* Glow */}
-            <div className="orb-glow"></div>
+              {/* Glow */}
+              <div className="orb-glow"></div>
 
-            {/* Rings */}
-            {[320, 260, 200].map((size, i) => (
-              <div key={size} style={{ position: 'absolute', top: '50%', left: '50%', width: size, height: size, borderRadius: '50%', border: `1px solid rgba(0,191,165,${0.08 - i * 0.02})`, transform: 'translate(-50%,-50%)', pointerEvents: 'none' }}></div>
-            ))}
+              {/* Rings */}
+              {[320, 260, 200].map((size, i) => (
+                <div key={size} style={{ position: 'absolute', top: '50%', left: '50%', width: size, height: size, borderRadius: '50%', border: `1px solid rgba(0,191,165,${0.08 - i * 0.02})`, transform: 'translate(-50%,-50%)', pointerEvents: 'none' }}></div>
+              ))}
 
-            {/* Orbit path SVG */}
-            <svg style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 320, height: 320, pointerEvents: 'none' }}>
-              <ellipse cx="160" cy="160" rx="158" ry="65" fill="none" stroke="rgba(0,191,165,0.12)" strokeWidth="1" transform="rotate(-15 160 160)"/>
-              <ellipse cx="160" cy="160" rx="158" ry="65" fill="none" stroke="rgba(255,107,74,0.08)" strokeWidth="1" transform="rotate(45 160 160)"/>
-            </svg>
+              {/* Orbit path SVG */}
+              <svg style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 320, height: 320, pointerEvents: 'none' }}>
+                <ellipse cx="160" cy="160" rx="158" ry="65" fill="none" stroke="rgba(0,191,165,0.12)" strokeWidth="1" transform="rotate(-15 160 160)"/>
+                <ellipse cx="160" cy="160" rx="158" ry="65" fill="none" stroke="rgba(255,107,74,0.08)" strokeWidth="1" transform="rotate(45 160 160)"/>
+              </svg>
 
-            {/* Orbiting icons */}
-            {orbitItems.map((item) => {
-              const angle = ((item.angle + orbitAngle) * Math.PI) / 180
-              const rx = 155, ry = 62
-              const tilt = -15 * Math.PI / 180
-              const x = rx * Math.cos(angle) * Math.cos(tilt) - ry * Math.sin(angle) * Math.sin(tilt)
-              const y = rx * Math.cos(angle) * Math.sin(tilt) + ry * Math.sin(angle) * Math.cos(tilt)
-              const depth = 0.72 + 0.28 * (1 + Math.sin(angle + Math.PI / 2)) / 2
-              return (
-                <div key={item.label} className="orbit-icon" onClick={() => navigate('/browse')}
-                  style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${depth})`, zIndex: Math.round(depth * 10), opacity: 0.5 + depth * 0.5 }}>
-                  <span style={{ fontSize: 22 }}>{item.icon}</span>
-                  <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginTop: 2, textAlign: 'center' }}>{item.label}</span>
-                </div>
-              )
-            })}
+              {/* Orbiting icons */}
+              {orbitItems.map((item) => {
+                const angle = ((item.angle + orbitAngle) * Math.PI) / 180
+                const rx = 155, ry = 62
+                const tilt = -15 * Math.PI / 180
+                const x = rx * Math.cos(angle) * Math.cos(tilt) - ry * Math.sin(angle) * Math.sin(tilt)
+                const y = rx * Math.cos(angle) * Math.sin(tilt) + ry * Math.sin(angle) * Math.cos(tilt)
+                const depth = 0.72 + 0.28 * (1 + Math.sin(angle + Math.PI / 2)) / 2
+                return (
+                  <div key={item.label} className="orbit-icon" onClick={() => navigate('/browse')}
+                    style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${depth})`, zIndex: Math.round(depth * 10), opacity: 0.5 + depth * 0.5 }}>
+                    <span style={{ fontSize: 22 }}>{item.icon}</span>
+                    <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginTop: 2, textAlign: 'center' }}>{item.label}</span>
+                  </div>
+                )
+              })}
 
-            {/* CENTER ORB */}
-            <div className="orb-core" onClick={() => navigate('/browse')}>
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 4 }}>Welcome to</span>
-              <span className="syne" style={{ fontSize: 18, fontWeight: 900, color: 'white', lineHeight: 1 }}>Ugele</span>
-              <span className="syne" style={{ fontSize: 18, fontWeight: 900, color: '#00BFA5', lineHeight: 1, marginBottom: 6 }}>Online</span>
-              <div style={{ width: 32, height: 1.5, background: 'linear-gradient(90deg, transparent, #00BFA5, transparent)', marginBottom: 6 }}></div>
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Tap to Explore</span>
+              {/* CENTER ORB */}
+              <div className="orb-core" onClick={() => navigate('/browse')}>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 4 }}>Welcome to</span>
+                <span className="syne" style={{ fontSize: 18, fontWeight: 900, color: 'white', lineHeight: 1 }}>Ugele</span>
+                <span className="syne" style={{ fontSize: 18, fontWeight: 900, color: '#00BFA5', lineHeight: 1, marginBottom: 6 }}>Online</span>
+                <div style={{ width: 32, height: 1.5, background: 'linear-gradient(90deg, transparent, #00BFA5, transparent)', marginBottom: 6 }}></div>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Tap to Explore</span>
+              </div>
+
             </div>
-
-          </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, width: '100%', maxWidth: 320 }}>
+              {orbitItems.map((item) => (
+                <div key={item.label} onClick={() => navigate('/browse')}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '16px 8px', borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 28 }}>{item.icon}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600, textAlign: 'center' }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
