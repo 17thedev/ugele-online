@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Logo from '../assets/Logo'
@@ -12,12 +12,26 @@ export default function ProviderDashboard() {
   const [price, setPrice] = useState('')
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [portfolioUrls, setPortfolioUrls] = useState([])
+  const [portfolioUploading, setPortfolioUploading] = useState(false)
+  const avatarInputRef = useRef(null)
+  const portfolioInputRef = useRef(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     const getProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { navigate('/login'); return }
+
+      // Attempt to add new columns — requires an exec_sql RPC in Supabase, or add manually:
+      // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url text;
+      // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS portfolio jsonb DEFAULT '[]'::jsonb;
+      await supabase.rpc('exec_sql', {
+        sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url text; ALTER TABLE profiles ADD COLUMN IF NOT EXISTS portfolio jsonb DEFAULT '[]'::jsonb;`
+      }).catch(() => {})
+
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (data) {
         setProfile(data)
@@ -26,10 +40,60 @@ export default function ProviderDashboard() {
         setCity(data.city || '')
         setService(data.category || '')
         setPrice(data.price || '')
+        setAvatarUrl(data.avatar_url || null)
+        setPortfolioUrls(Array.isArray(data.portfolio) ? data.portfolio : [])
       }
     }
     getProfile()
   }, [])
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setAvatarUploading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}.${ext}`
+    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id)
+      setAvatarUrl(publicUrl)
+    }
+    setAvatarUploading(false)
+    e.target.value = ''
+  }
+
+  const handlePortfolioUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    const slots = 6 - portfolioUrls.length
+    if (slots <= 0) return
+    const toUpload = files.slice(0, slots)
+    setPortfolioUploading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const newUrls = []
+    for (const file of toUpload) {
+      const path = `${user.id}/${Date.now()}-${file.name}`
+      const { error } = await supabase.storage.from('portfolio').upload(path, file, { upsert: true })
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from('portfolio').getPublicUrl(path)
+        newUrls.push(publicUrl)
+      }
+    }
+    const updated = [...portfolioUrls, ...newUrls]
+    await supabase.from('profiles').update({ portfolio: updated }).eq('id', user.id)
+    setPortfolioUrls(updated)
+    setPortfolioUploading(false)
+    e.target.value = ''
+  }
+
+  const handleRemovePortfolioImage = async (urlToRemove) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const updated = portfolioUrls.filter(u => u !== urlToRemove)
+    await supabase.from('profiles').update({ portfolio: updated }).eq('id', user.id)
+    setPortfolioUrls(updated)
+  }
 
   const handleSave = async () => {
     setLoading(true)
@@ -179,9 +243,17 @@ export default function ProviderDashboard() {
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
+        .avatar-wrap {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+        .avatar-wrap:hover .avatar-overlay { opacity: 1; }
         .avatar-circle {
-          width: 64px;
-          height: 64px;
+          width: 80px;
+          height: 80px;
           border-radius: 50%;
           background: linear-gradient(135deg, #0A2540, #00BFA5);
           display: flex;
@@ -189,9 +261,73 @@ export default function ProviderDashboard() {
           justify-content: center;
           font-family: 'Syne', sans-serif;
           font-weight: 900;
-          font-size: 24px;
+          font-size: 28px;
           color: white;
           box-shadow: 0 0 20px rgba(0,191,165,0.3);
+          overflow: hidden;
+          border: 2px solid rgba(0,191,165,0.3);
+        }
+        .avatar-overlay {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: rgba(0,0,0,0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          font-size: 20px;
+        }
+
+        .portfolio-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin-top: 14px;
+        }
+        .portfolio-img-wrap {
+          position: relative;
+          aspect-ratio: 1;
+          border-radius: 10px;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+        }
+        .portfolio-img-wrap:hover .portfolio-remove { opacity: 1; }
+        .portfolio-remove {
+          position: absolute;
+          top: 6px; right: 6px;
+          background: rgba(0,0,0,0.7);
+          border: none;
+          color: white;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          font-size: 13px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+        .portfolio-add-slot {
+          aspect-ratio: 1;
+          border-radius: 10px;
+          border: 1.5px dashed rgba(255,255,255,0.15);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          background: rgba(255,255,255,0.02);
+        }
+        .portfolio-add-slot:hover {
+          border-color: #00BFA5;
+          background: rgba(0,191,165,0.05);
         }
 
         .stat-box {
@@ -205,6 +341,10 @@ export default function ProviderDashboard() {
       `}</style>
 
       {saved && <div className="success-toast">✅ Profile updated successfully!</div>}
+
+      {/* Hidden file inputs */}
+      <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+      <input ref={portfolioInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handlePortfolioUpload} />
 
       {/* Navbar */}
       <div className="dash-nav">
@@ -222,12 +362,27 @@ export default function ProviderDashboard() {
         {/* Welcome */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-            <div className="avatar-circle">{(profile?.full_name || 'U')[0].toUpperCase()}</div>
+            {/* Clickable avatar */}
+            <div className="avatar-wrap" onClick={() => !avatarUploading && avatarInputRef.current.click()} title="Click to upload photo">
+              <div className="avatar-circle">
+                {avatarUploading ? (
+                  <span style={{ fontSize: 22 }}>⏳</span>
+                ) : avatarUrl ? (
+                  <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  (profile?.full_name || 'U')[0].toUpperCase()
+                )}
+              </div>
+              {!avatarUploading && (
+                <div className="avatar-overlay">📷</div>
+              )}
+            </div>
             <div>
               <p className="syne" style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 2 }}>
                 {profile?.full_name || 'Welcome'}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Service Provider</p>
+              <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, marginTop: 2 }}>Click photo to change</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
@@ -269,9 +424,40 @@ export default function ProviderDashboard() {
             </div>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 24 }}>
             <label className="label">About You</label>
             <textarea className="input-field" placeholder="Describe your services and experience..." rows={4} value={bio} onChange={e => setBio(e.target.value)} style={{ resize: 'vertical' }}></textarea>
+          </div>
+
+          {/* My Work — Portfolio */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label className="label" style={{ marginBottom: 0 }}>My Work</label>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>{portfolioUrls.length}/6 photos</span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, marginBottom: 10 }}>
+              Show potential clients what you can do. Upload up to 6 photos.
+            </p>
+            <div className="portfolio-grid">
+              {portfolioUrls.map((url, i) => (
+                <div key={url} className="portfolio-img-wrap">
+                  <img src={url} alt={`portfolio ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button className="portfolio-remove" onClick={() => handleRemovePortfolioImage(url)} title="Remove">✕</button>
+                </div>
+              ))}
+              {portfolioUrls.length < 6 && (
+                <div className="portfolio-add-slot" onClick={() => !portfolioUploading && portfolioInputRef.current.click()}>
+                  {portfolioUploading ? (
+                    <span style={{ fontSize: 22 }}>⏳</span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 24, color: 'rgba(255,255,255,0.2)' }}>+</span>
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontWeight: 600, textAlign: 'center' }}>Add Photo</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <button className="save-btn" onClick={handleSave} disabled={loading}>
